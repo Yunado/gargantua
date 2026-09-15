@@ -588,6 +588,8 @@ window.GARGANTUA = {
 // ----------------------------------------------------------------------------- boot
 applyQuality();
 setView(state.view, true);
+camera.position.multiplyScalar(1.35); // start a bit farther out: the scene reads smaller on screen
+controls.update();
 hud.setQuality();
 hud.setCinematic();
 hud.updateDebug();
