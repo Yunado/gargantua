@@ -143,8 +143,8 @@ vec3 galaxyBand(vec3 d) {
   // orbits (the old a~0.5 small ring rotated completely out of view).
   vec3 gN = normalize(vec3(0.0, 0.39, -0.927));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
-  float band = exp(-pow((a - 1.5708) * 4.5, 2.0))
-             + 0.18 * exp(-pow((a - 1.5708) * 1.6, 2.0)); // narrower band (was too big)
+  float band = exp(-pow((a - 1.5708) * 3.2, 2.0))
+             + 0.28 * exp(-pow((a - 1.5708) * 1.2, 2.0)); // back to visible width (4.5 was too thin)
   // seam-free 3D domain: circumferential features on the sphere plus the band-radial
   // offset along the band normal — no atan, no wrap seam. When the band is viewed
   // edge-on (d ~ perpendicular to gN) its circumferential structure aliases into
@@ -170,13 +170,13 @@ vec3 galaxyBand(vec3 d) {
   zoneCol = mix(zoneCol, vec3(0.60, 0.90, 0.50), smoothstep(0.75, 0.90, hueSel) * 0.5); // green
   zoneCol = mix(zoneCol, vec3(0.90, 0.40, 0.90), smoothstep(0.20, 0.35, hueSel) * 0.4); // magenta
   zoneCol = mix(zoneCol, vec3(1.00, 0.85, 0.45), smoothstep(0.55, 0.70, hueSel) * 0.35); // warm yellow
-  vec3 col = vec3(1.0, 0.96, 0.88) * (0.45 + 0.55 * fbm3(q * 0.5 + 5.1)) * 0.09;
-  col += zoneCol * neb * 0.30;
-  col += vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.20;
+  vec3 col = vec3(1.0, 0.96, 0.88) * (0.45 + 0.55 * fbm3(q * 0.5 + 5.1)) * 0.13; // brighter base so cracks show
+  col += zoneCol * neb * 0.42;
+  col += vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.26;
   // cracked structure: two octaves of winding dust -> deep sinuous dark cracks
-  float cracks = smoothstep(0.38, 0.56, fbm3(q * 1.4 + 11.3)) * 0.70
-               + smoothstep(0.42, 0.58, fbm3(q * 3.4 + 47.9)) * 0.60
-               + smoothstep(0.45, 0.60, fbm3(q * 6.5 + 91.2)) * 0.45; // more, deeper cracks
+  float cracks = smoothstep(0.36, 0.54, fbm3(q * 1.4 + 11.3)) * 0.85
+               + smoothstep(0.40, 0.56, fbm3(q * 3.4 + 47.9)) * 0.70
+               + smoothstep(0.44, 0.58, fbm3(q * 6.5 + 91.2)) * 0.50; // more, deeper cracks
   col *= 1.0 - cracks * smoothstep(0.0, 0.5, a);
   // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
   // it seam-free; no pole-centered blob).
