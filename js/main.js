@@ -284,25 +284,31 @@ function cinematicPos(t) {
 // locks the view direction — the current look direction is preserved (the black
 // hole and background nebula drift through the frame as the path moves).
 let userDrag = false;
-const _fwd = new THREE.Vector3();
 const _tgt = new THREE.Vector3();
-const _zero = new THREE.Vector3();
 function updateCamera(dt) {
   if (animateView(dt)) {
     controls.update(); // preset flight owns the camera; cinematic glides back after it finishes
     return;
   }
   if (state.cinematic) {
-    const k = 1 - Math.exp(-2.5 * dt);
-    if (userDrag) {
-      controls.target.lerp(_zero, k); // while dragging, orbit center eases back to the black hole
-    } else {
+    controls.target.set(0, 0, 0); // view center locked on the black hole
+    if (!userDrag) {
+      // cinematic motion = the path's azimuth drift applied as a rotation around the
+      // black hole (auto-orbit) + a gentle elevation ease, at the user's distance.
       const cp = cinematicPos(state.simTime);
-      const R = Math.hypot(cp.x, cp.z) || 1;
-      const s = camera.position.length() / R; // keep the user's zoom distance — only the motion is cinematic
-      camera.position.lerp(_tgt.set(cp.x * s, cp.y * s, cp.z * s), k);
-      camera.getWorldDirection(_fwd);
-      controls.target.copy(camera.position).addScaledVector(_fwd, 10); // keep current orientation exactly
+      const cpn = cinematicPos(state.simTime + dt);
+      let dA = Math.atan2(cpn.z, cpn.x) - Math.atan2(cp.z, cp.x);
+      if (dA > Math.PI) dA -= 2 * Math.PI; else if (dA < -Math.PI) dA += 2 * Math.PI;
+      const ca = Math.cos(dA), sa = Math.sin(dA);
+      const r = camera.position.length();
+      _tgt.set(
+        camera.position.x * ca - camera.position.z * sa,
+        camera.position.y,
+        camera.position.x * sa + camera.position.z * ca
+      );
+      const R = Math.hypot(cpn.x, cpn.z) || 1;
+      _tgt.y += (cpn.y * (r / R) - camera.position.y) * 0.04;
+      camera.position.copy(_tgt);
     }
   }
   controls.update();
