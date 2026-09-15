@@ -285,16 +285,25 @@ function cinematicPos(t) {
 // hole and background nebula drift through the frame as the path moves).
 let userDrag = false;
 const _fwd = new THREE.Vector3();
+const _tgt = new THREE.Vector3();
+const _zero = new THREE.Vector3();
 function updateCamera(dt) {
   if (animateView(dt)) {
     controls.update(); // preset flight owns the camera; cinematic glides back after it finishes
     return;
   }
-  if (state.cinematic && !userDrag) {
+  if (state.cinematic) {
     const k = 1 - Math.exp(-2.5 * dt);
-    camera.position.lerp(cinematicPos(state.simTime), k);
-    camera.getWorldDirection(_fwd);
-    controls.target.copy(camera.position).addScaledVector(_fwd, 10); // keep current orientation exactly
+    if (userDrag) {
+      controls.target.lerp(_zero, k); // while dragging, orbit center eases back to the black hole
+    } else {
+      const cp = cinematicPos(state.simTime);
+      const R = Math.hypot(cp.x, cp.z) || 1;
+      const s = camera.position.length() / R; // keep the user's zoom distance — only the motion is cinematic
+      camera.position.lerp(_tgt.set(cp.x * s, cp.y * s, cp.z * s), k);
+      camera.getWorldDirection(_fwd);
+      controls.target.copy(camera.position).addScaledVector(_fwd, 10); // keep current orientation exactly
+    }
   }
   controls.update();
 }
