@@ -138,17 +138,13 @@ vec3 starfield(vec3 d) {
 
 // ---------------------------------------------------------------- milky way band
 vec3 galaxyBand(vec3 d) {
-  // gN chosen so the band ring (a~0.5 around gN) passes through the interstellar
-  // view direction (0,-0.1,-1): the Milky Way then sweeps across the frame like the
-  // reference photo, not out of frame.
+  // GREAT CIRCLE (a = pi/2 from gN): we are INSIDE the galactic disk, so the Milky
+  // Way is a full circle on the sky — always in frame no matter how the camera
+  // orbits (the old a~0.5 small ring rotated completely out of view).
   vec3 gN = normalize(vec3(0.0, 0.39, -0.927));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
-  // Ring-shaped band (like the real galactic plane seen from outside): dim at the
-  // pole (a=0), peak at a~0.5, fading outward. The old exp(-a^2) profile peaked at
-  // the pole and rendered as one huge diffuse bright blob in bottom-of-sphere views.
-  // Narrower: bright core band + a fainter wide halo (was wider — read as too big).
-  float band = exp(-pow((a - 0.5) * 3.4, 2.0))
-             + 0.30 * exp(-pow((a - 0.5) * 1.0, 2.0));
+  float band = exp(-pow((a - 1.5708) * 4.5, 2.0))
+             + 0.18 * exp(-pow((a - 1.5708) * 1.6, 2.0)); // narrower band (was too big)
   // seam-free 3D domain: circumferential features on the sphere plus the band-radial
   // offset along the band normal — no atan, no wrap seam. When the band is viewed
   // edge-on (d ~ perpendicular to gN) its circumferential structure aliases into
@@ -156,7 +152,7 @@ vec3 galaxyBand(vec3 d) {
   // keep the full detail.
   float faceon = abs(dot(d, gN));
   float freq = 0.25 + 0.7 * smoothstep(0.0, 0.5, faceon); // very large, grand, background-scale clouds
-  vec3 q = d * freq + gN * ((a - 0.52) * 5.5);
+  vec3 q = d * freq + gN * ((a - 1.5708) * 5.5);
   float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
   neb = pow(clamp(neb, 0.0, 1.25), 2.3); // sparse, star-like clumps (was 1.7 — too banded)
   float dust = fbm3(q * 1.2 + 11.3);
@@ -167,16 +163,20 @@ vec3 galaxyBand(vec3 d) {
   // from swelling into a blob near the horizon.
   // multi-color zones: large-scale field tints whole regions (pink / blue / teal /
   // orange) so the band reads as varied colored patches, not one tone.
-  float hueSel = fbm3(d * 1.6 + 13.2);
+  float hueSel = fbm3(d * 2.4 + 13.2); // higher freq -> more, smaller color zones (varied colors)
   vec3 zoneCol = mix(mix(vec3(1.00, 0.55, 0.65), vec3(0.45, 0.65, 1.00), smoothstep(0.30, 0.50, hueSel)),
                      mix(vec3(0.40, 0.90, 0.75), vec3(1.00, 0.70, 0.40), smoothstep(0.60, 0.80, hueSel)),
                      smoothstep(0.50, 0.70, hueSel));
+  zoneCol = mix(zoneCol, vec3(0.60, 0.90, 0.50), smoothstep(0.75, 0.90, hueSel) * 0.5); // green
+  zoneCol = mix(zoneCol, vec3(0.90, 0.40, 0.90), smoothstep(0.20, 0.35, hueSel) * 0.4); // magenta
+  zoneCol = mix(zoneCol, vec3(1.00, 0.85, 0.45), smoothstep(0.55, 0.70, hueSel) * 0.35); // warm yellow
   vec3 col = vec3(1.0, 0.96, 0.88) * (0.45 + 0.55 * fbm3(q * 0.5 + 5.1)) * 0.09;
   col += zoneCol * neb * 0.30;
   col += vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.20;
   // cracked structure: two octaves of winding dust -> deep sinuous dark cracks
-  float cracks = smoothstep(0.42, 0.58, fbm3(q * 1.2 + 11.3)) * 0.55
-               + smoothstep(0.46, 0.60, fbm3(q * 2.8 + 47.9)) * 0.45;
+  float cracks = smoothstep(0.38, 0.56, fbm3(q * 1.4 + 11.3)) * 0.70
+               + smoothstep(0.42, 0.58, fbm3(q * 3.4 + 47.9)) * 0.60
+               + smoothstep(0.45, 0.60, fbm3(q * 6.5 + 91.2)) * 0.45; // more, deeper cracks
   col *= 1.0 - cracks * smoothstep(0.0, 0.5, a);
   // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
   // it seam-free; no pole-centered blob).
@@ -210,7 +210,7 @@ vec3 denseStars(vec3 d, float bandMask) {
       float bright = hash11(h.x * 57.13 + h.y * 13.7);
       float on = step(0.12, h.y); // high occupancy
       vec3 tint = mix(vec3(0.65, 0.78, 1.0), vec3(1.0, 0.92, 0.72), h.x);
-      col += star * on * (0.30 + 2.2 * bright) * tint * (0.30 + 0.70 * clumpMask);
+      col += star * on * (0.18 + 1.4 * bright) * tint * (0.30 + 0.70 * clumpMask);
     }
   }
   return col * bandMask * uMilkyStars;
@@ -221,11 +221,16 @@ vec3 distantNebulae(vec3 d) {
   // scattered everywhere: medium-frequency patches, 5 colors, random offsets —
   // the deep-space background is a random sprinkling of colored nebulosity.
   vec3 c = vec3(0.0);
-  c += vec3(0.85, 0.30, 0.45) * smoothstep(0.58, 0.82, fbm3(d * 0.9 + 21.7)) * 0.05;
-  c += vec3(0.30, 0.50, 0.95) * smoothstep(0.60, 0.85, fbm3(d * 0.8 + 57.3)) * 0.05;
-  c += vec3(0.25, 0.70, 0.60) * smoothstep(0.62, 0.88, fbm3(d * 0.7 + 91.1)) * 0.04;
-  c += vec3(0.95, 0.60, 0.35) * smoothstep(0.62, 0.86, fbm3(d * 1.1 + 33.9)) * 0.04;
-  c += vec3(0.70, 0.45, 0.90) * smoothstep(0.64, 0.90, fbm3(d * 1.0 + 77.5)) * 0.04;
+  // higher frequency + more patches = smaller, more numerous, randomly scattered
+  // everywhere across the sky (not clumped).
+  c += vec3(0.85, 0.30, 0.45) * smoothstep(0.55, 0.78, fbm3(d * 2.2 + 21.7)) * 0.05;
+  c += vec3(0.30, 0.50, 0.95) * smoothstep(0.56, 0.82, fbm3(d * 2.0 + 57.3)) * 0.05;
+  c += vec3(0.25, 0.70, 0.60) * smoothstep(0.58, 0.86, fbm3(d * 1.9 + 91.1)) * 0.045;
+  c += vec3(0.95, 0.60, 0.35) * smoothstep(0.58, 0.84, fbm3(d * 2.4 + 33.9)) * 0.045;
+  c += vec3(0.70, 0.45, 0.90) * smoothstep(0.60, 0.88, fbm3(d * 2.1 + 77.5)) * 0.045;
+  c += vec3(0.40, 0.80, 0.85) * smoothstep(0.58, 0.84, fbm3(d * 2.3 + 44.2)) * 0.04;
+  c += vec3(0.90, 0.40, 0.55) * smoothstep(0.60, 0.86, fbm3(d * 2.5 + 66.8)) * 0.04;
+  c += vec3(0.55, 0.75, 0.95) * smoothstep(0.59, 0.85, fbm3(d * 2.6 + 88.4)) * 0.04;
   return c;
 }
 vec3 background(vec3 d) {
@@ -235,7 +240,7 @@ vec3 background(vec3 d) {
   // hugging the black hole.
   vec3 gN = normalize(vec3(0.0, 0.39, -0.927));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
-  float bandMask = exp(-pow((a - 0.5) * 3.0, 2.0));
+  float bandMask = exp(-pow((a - 1.5708) * 3.0, 2.0)); // great-circle band
   return starfield(d) * (1.0 + 5.5 * bandMask) + denseStars(d, bandMask)
        + galaxyBand(d) + distantNebulae(d) + vec3(0.004, 0.005, 0.008);
 }

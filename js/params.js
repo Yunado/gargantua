@@ -14,7 +14,7 @@ export const PARAM_DEFS = [
   { id: 'turbulence', label: 'Turbulence', min: 0, max: 3, step: 0.05, def: 1.5 },
   { id: 'mass', label: 'Mass scale', min: 0.3, max: 2, step: 0.05, def: 0.85 },
   { id: 'stars', label: 'Star density', min: 0, max: 2, step: 0.05, def: 1.5 },
-  { id: 'milkyStars', label: 'Milky Way stars', min: 0, max: 3, step: 0.05, def: 0.6 },
+  { id: 'milkyStars', label: 'Milky Way stars', min: 0, max: 3, step: 0.05, def: 0.3 },
   { id: 'galaxy', label: 'Galaxy band', min: 0, max: 2, step: 0.05, def: 1.2 },
   { id: 'bloom', label: 'Bloom', min: 0, max: 2.5, step: 0.05, def: 0.55 },
   { id: 'bloomThreshold', label: 'Bloom threshold', min: 0.2, max: 3, step: 0.05, def: 0.85 },
