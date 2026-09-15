@@ -161,11 +161,14 @@ float diskSample(vec3 p, out float tBoost, out vec3 ePhi, out float vMag) {
   float prof = exp(-0.5 * z * z);
   float ang = atan(p.z, p.x);
   // Keplerian differential advection: every ring rotates at its local orbital
-  // angular velocity (inner faster); noise sampled in continuous Cartesian
-  // polar coords so there is no 2*pi atan seam.
+  // angular velocity (inner faster). Noise sampled in the rotated Cartesian
+  // frame (continuous, no 2*pi atan seam) at high angular frequency so the
+  // disk keeps swirling cloud structure instead of concentric bands.
   float omega = 1.0 / (r * sqrt(max(r - 2.0 * uMass, 0.5)));
-  vec2 cd = vec2(cos(ang - omega * uTime * 4.0), sin(ang - omega * uTime * 4.0)) * r;
-  float n = fbm(cd * 0.5 + fbm(cd * 0.9 - uTime * 0.08) * 1.3);
+  float rot = omega * uTime * 4.0;
+  float ca = cos(ang - rot), sa = sin(ang - rot);
+  vec2 rp = vec2(ca * p.x - sa * p.z, sa * p.x + ca * p.z);
+  float n = fbm(rp * 1.4 + fbm(rp * 2.6 - uTime * 0.06) * 1.2);
   n = clamp(n, 0.0, 1.0);
   float den = radial * prof * (0.62 + uTurb * (n * 1.4 - 0.5));
   // inner puff torus: extra 3D volume hugging the inner edge

@@ -280,18 +280,21 @@ function cinematicPos(t) {
   return new THREE.Vector3(R * Math.cos(th), y, R * Math.sin(th));
 }
 // user drag state: while the pointer is down the user owns the camera; on release
-// the cinematic path (if on) smoothly glides the camera back. Only C / button toggles cinematic.
+// the cinematic path smoothly glides the camera position back. Cinematic never
+// locks the view direction — the current look direction is preserved (the black
+// hole and background nebula drift through the frame as the path moves).
 let userDrag = false;
-const _zero = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
 function updateCamera(dt) {
   if (animateView(dt)) {
-    controls.update(); // preset flight owns the camera; cinematic (if on) glides back after it finishes
+    controls.update(); // preset flight owns the camera; cinematic glides back after it finishes
     return;
   }
   if (state.cinematic && !userDrag) {
     const k = 1 - Math.exp(-2.5 * dt);
     camera.position.lerp(cinematicPos(state.simTime), k);
-    controls.target.lerp(_zero, k);
+    camera.getWorldDirection(_fwd);
+    controls.target.copy(camera.position).addScaledVector(_fwd, 10); // keep current orientation exactly
   }
   controls.update();
 }
