@@ -139,10 +139,18 @@ vec3 starfield(vec3 d) {
 vec3 galaxyBand(vec3 d) {
   vec3 gN = normalize(vec3(0.42, 1.0, -0.28));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
-  float band = exp(-a * a * 15.0);
-  // seam-free 3D domain: circumferential features on the sphere (d * 2.2) plus the
-  // band-radial offset along the band normal — no atan, no wrap seam.
-  vec3 q = d * 2.2 + gN * ((a - 0.52) * 5.5);
+  // Ring-shaped band (like the real galactic plane seen from outside): dim at the
+  // pole (a=0), peak at a~0.5, fading outward. The old exp(-a^2) profile peaked at
+  // the pole and rendered as one huge diffuse bright blob in bottom-of-sphere views.
+  float band = exp(-pow((a - 0.5) * 3.5, 2.0));
+  // seam-free 3D domain: circumferential features on the sphere plus the band-radial
+  // offset along the band normal — no atan, no wrap seam. When the band is viewed
+  // edge-on (d ~ perpendicular to gN) its circumferential structure aliases into
+  // horizontal stripes — low-pass (lower frequency) in that case; face-on views
+  // keep the full detail.
+  float faceon = abs(dot(d, gN));
+  float freq = 0.6 + 1.6 * smoothstep(0.0, 0.5, faceon); // 0.6 edge-on .. 2.2 face-on
+  vec3 q = d * freq + gN * ((a - 0.52) * 5.5);
   float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
   neb = pow(clamp(neb, 0.0, 1.25), 1.7);
   float dust = fbm3(q * 1.2 + 11.3);
@@ -150,7 +158,10 @@ vec3 galaxyBand(vec3 d) {
   vec3 col = vec3(0.85, 0.78, 1.0) * neb * 0.55
            + vec3(1.0, 0.60, 0.40) * pow(neb, 3.0) * 0.9;
   col *= 1.0 - lanes * smoothstep(0.0, 0.5, a);
-  col += vec3(1.0, 0.85, 0.60) * exp(-a * a * 70.0) * 0.55; // bulge
+  // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
+  // it seam-free; no pole-centered blob).
+  float core = smoothstep(0.52, 0.72, fbm3(d * 0.9 + 31.7));
+  col += vec3(1.0, 0.85, 0.60) * core * 0.45;
   return col * band * uGalaxy;
 }
 vec3 background(vec3 d) {
