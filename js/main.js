@@ -252,12 +252,18 @@ function setView(i, instant) {
   hud.setView && hud.setView();
   const to = new THREE.Vector3(...VIEWS[i].pos).multiplyScalar(1.35); // same pullback as boot (views were reading zoomed-in)
   const from = camera.position.clone();
-  if (instant || state.cinematic === false && from.lengthSq() === 0) {
+  if (!instant && state.cinematic) {
+    // user-initiated preset: stop the cinematic auto-path so the framing holds.
+    // (overhead especially got pulled back to the front orbit, and the dead-zone
+    // lift distorted it). C / the Cinematic button re-enables the drift.
+    state.cinematic = false;
+    hud.setCinematic && hud.setCinematic();
+  }
+  if (instant || from.lengthSq() === 0) {
     camera.position.copy(to);
     return;
   }
   viewAnim = { t: 0, dur: 1.4, from, to };
-  // presets do NOT turn cinematic off — only C / the Cinematic button do
 }
 function animateView(dt) {
   if (!viewAnim) return false;
