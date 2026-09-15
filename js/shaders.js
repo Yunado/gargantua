@@ -137,7 +137,7 @@ vec3 starfield(vec3 d) {
 
 // ---------------------------------------------------------------- milky way band
 vec3 galaxyBand(vec3 d) {
-  vec3 gN = normalize(vec3(0.42, 1.0, -0.28));
+  vec3 gN = normalize(vec3(0.72, 0.62, -0.35)); // tilted band: reads as a slanted background plane
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
   // Ring-shaped band (like the real galactic plane seen from outside): dim at the
   // pole (a=0), peak at a~0.5, fading outward. The old exp(-a^2) profile peaked at
@@ -149,30 +149,42 @@ vec3 galaxyBand(vec3 d) {
   // horizontal stripes — low-pass (lower frequency) in that case; face-on views
   // keep the full detail.
   float faceon = abs(dot(d, gN));
-  float freq = 0.35 + 0.9 * smoothstep(0.0, 0.5, faceon); // big grand clouds (was 0.6..2.2 — read as small patch hugging the hole)
+  float freq = 0.25 + 0.7 * smoothstep(0.0, 0.5, faceon); // very large, grand, background-scale clouds
   vec3 q = d * freq + gN * ((a - 0.52) * 5.5);
   float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
   neb = pow(clamp(neb, 0.0, 1.25), 2.3); // sparse, star-like clumps (was 1.7 — too banded)
   float dust = fbm3(q * 1.2 + 11.3);
   float lanes = smoothstep(0.50, 0.64, dust) * 0.9;
-  vec3 col = vec3(0.85, 0.78, 1.0) * neb * 0.42          // dim base (was 0.55)
-           + vec3(1.0, 0.60, 0.40) * pow(neb, 3.0) * 0.7; // warm clumps (was 0.9)
+  // near-white, very faint: the stars (x3.2 boost in background()) carry the Milky
+  // Way look; the continuous nebula glow must stay so faint that even caustic
+  // magnification near the photon ring can't swell it into a purple blob.
+  vec3 col = vec3(0.90, 0.92, 1.0) * neb * 0.14
+           + vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.25;
   col *= 1.0 - lanes * smoothstep(0.0, 0.5, a);
   // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
   // it seam-free; no pole-centered blob).
   float core = smoothstep(0.55, 0.75, fbm3(d * 0.9 + 31.7));
-  col += vec3(1.0, 0.85, 0.60) * core * 0.35;
+  col += vec3(1.0, 0.85, 0.60) * core * 0.18;
   return col * band * uGalaxy;
+}
+// distant colored nebulae: large-scale, low-frequency, faint — background color
+// variety beyond the Milky Way (emission pink, reflection blue, teal).
+vec3 distantNebulae(vec3 d) {
+  vec3 c = vec3(0.0);
+  c += vec3(0.85, 0.25, 0.35) * smoothstep(0.58, 0.82, fbm3(d * 0.55 + 21.7)) * 0.06; // emission pink
+  c += vec3(0.25, 0.45, 0.95) * smoothstep(0.60, 0.85, fbm3(d * 0.45 + 57.3)) * 0.06; // reflection blue
+  c += vec3(0.18, 0.70, 0.55) * smoothstep(0.62, 0.88, fbm3(d * 0.50 + 91.1)) * 0.05; // teal
+  return c;
 }
 vec3 background(vec3 d) {
   // Milky Way look: the real galaxy is a great BAND OF DENSE STARS (a wall of
   // starlight), with only faint nebulosity on top. Boost star density inside the
   // band so it reads as a wide galactic band across the sky, not a small patch
   // hugging the black hole.
-  vec3 gN = normalize(vec3(0.42, 1.0, -0.28));
+  vec3 gN = normalize(vec3(0.72, 0.62, -0.35));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
   float bandMask = exp(-pow((a - 0.5) * 2.6, 2.0));
-  return starfield(d) * (1.0 + 2.2 * bandMask) + galaxyBand(d) + vec3(0.004, 0.005, 0.008);
+  return starfield(d) * (1.0 + 2.2 * bandMask) + galaxyBand(d) + distantNebulae(d) + vec3(0.004, 0.005, 0.008);
 }
 
 // ---------------------------------------------------------------- blackbody (Tanner Helland incandescence approx)
@@ -270,11 +282,13 @@ void main() {
   bool escaped = false;
   float gLast = 1.0, muLast = 0.0, TLast = 0.0;
   float denAccum = 0.0, gAccum = 0.0, TAccum = 0.0;
+  float rMin = 1e5; // closest approach (caustic cap)
   float bc = rs * 3.0 * sqrt(3.0) / 4.0; // critical impact parameter
 
   for (int i = 0; i < MAXSTEPS; i++) {
     if (i >= uSteps) break;
     float r = length(p);
+    rMin = min(rMin, r);
     if (r < rs) { trans = 0.0; break; }               // event horizon
     if (r > 64.0 && dot(p, k) > 0.0) { escaped = true; break; }
 
@@ -331,6 +345,11 @@ void main() {
     // subtle gravitational redshift tint on background light
     float gt = clamp(gLast, 0.0, 1.0);
     bg *= mix(vec3(1.0), vec3(1.06, 0.94, 0.80), (1.0 - gt) * 0.5 * uRedshift);
+    // caustic cap: rays that looped near the photon sphere get huge magnification of
+    // the background — cap it so the galaxy can't compress into a bright blob around
+    // the horizon.
+    float lensCap = smoothstep(4.5, 9.0, rMin);
+    bg *= mix(0.30, 1.0, lensCap);
     col += trans * bg * (escaped ? 1.0 : 0.85); // 0.85: photon-ring fallback falloff
   }
 
