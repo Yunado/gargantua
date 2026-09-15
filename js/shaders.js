@@ -152,16 +152,16 @@ vec3 galaxyBand(vec3 d) {
   float freq = 0.6 + 1.6 * smoothstep(0.0, 0.5, faceon); // 0.6 edge-on .. 2.2 face-on
   vec3 q = d * freq + gN * ((a - 0.52) * 5.5);
   float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
-  neb = pow(clamp(neb, 0.0, 1.25), 1.7);
+  neb = pow(clamp(neb, 0.0, 1.25), 2.3); // sparse, star-like clumps (was 1.7 — too banded)
   float dust = fbm3(q * 1.2 + 11.3);
   float lanes = smoothstep(0.50, 0.64, dust) * 0.9;
-  vec3 col = vec3(0.85, 0.78, 1.0) * neb * 0.55
-           + vec3(1.0, 0.60, 0.40) * pow(neb, 3.0) * 0.9;
+  vec3 col = vec3(0.85, 0.78, 1.0) * neb * 0.42          // dim base (was 0.55)
+           + vec3(1.0, 0.60, 0.40) * pow(neb, 3.0) * 0.7; // warm clumps (was 0.9)
   col *= 1.0 - lanes * smoothstep(0.0, 0.5, a);
   // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
   // it seam-free; no pole-centered blob).
-  float core = smoothstep(0.52, 0.72, fbm3(d * 0.9 + 31.7));
-  col += vec3(1.0, 0.85, 0.60) * core * 0.45;
+  float core = smoothstep(0.55, 0.75, fbm3(d * 0.9 + 31.7));
+  col += vec3(1.0, 0.85, 0.60) * core * 0.35;
   return col * band * uGalaxy;
 }
 vec3 background(vec3 d) {
