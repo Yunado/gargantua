@@ -10,3 +10,4 @@ test/shot.png
 test/serve-out.txt
 test/clickprobe.html
 test/live-main.js
+test/live*.js
