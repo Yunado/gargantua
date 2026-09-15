@@ -9,3 +9,4 @@ test/preview-*.png
 test/shot.png
 test/serve-out.txt
 test/clickprobe.html
+test/live-main.js
