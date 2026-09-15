@@ -79,6 +79,35 @@ float fbm(vec2 p) {
   }
   return v;
 }
+// 3D noise / fbm — seamless on the unit sphere (for the galaxy band; an
+// atan-azimuth 2D domain has a wrap seam at ang = ±pi that lensing warps into
+// a visible curved seam near the black hole).
+float hash13(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.zyx + 31.32);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise3(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hash13(i), hash13(i + vec3(1.0, 0.0, 0.0)), u.x),
+        mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), u.x), u.y),
+    mix(mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), u.x),
+        mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), u.x), u.y),
+    u.z);
+}
+float fbm3(vec3 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += amp * vnoise3(p);
+    p = p * 2.03 + 7.7;
+    amp *= 0.5;
+  }
+  return v;
+}
 
 // ---------------------------------------------------------------- starfield (3D cells, 3 octaves)
 vec3 starfield(vec3 d) {
@@ -111,13 +140,12 @@ vec3 galaxyBand(vec3 d) {
   vec3 gN = normalize(vec3(0.42, 1.0, -0.28));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
   float band = exp(-a * a * 15.0);
-  vec3 t1 = normalize(cross(gN, vec3(0.0, 0.0, 1.0) + 0.001));
-  vec3 t2 = normalize(cross(gN, t1));
-  float ang = atan(dot(d, t2), dot(d, t1));
-  vec2 p = vec2(ang * 2.2, (a - 0.52) * 5.5);
-  float neb = fbm(p * 1.4 + 4.7) * 0.75 + fbm(p * 3.3 - 2.2) * 0.35;
+  // seam-free 3D domain: circumferential features on the sphere (d * 2.2) plus the
+  // band-radial offset along the band normal — no atan, no wrap seam.
+  vec3 q = d * 2.2 + gN * ((a - 0.52) * 5.5);
+  float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
   neb = pow(clamp(neb, 0.0, 1.25), 1.7);
-  float dust = fbm(p * 2.1 + 11.3);
+  float dust = fbm3(q * 1.2 + 11.3);
   float lanes = smoothstep(0.50, 0.64, dust) * 0.9;
   vec3 col = vec3(0.85, 0.78, 1.0) * neb * 0.55
            + vec3(1.0, 0.60, 0.40) * pow(neb, 3.0) * 0.9;
@@ -146,8 +174,9 @@ vec3 blackbody(float T) {
 float diskH(float r) {
   return 0.34 * uThickness * pow(r / 3.0, 0.55 * uFlare + 0.15);
 }
-// p: point in world (disk in xz plane). Outputs: local temp boost, phi basis, orbital speed.
-float diskSample(vec3 p, out float tBoost, out vec3 ePhi, out float vMag) {
+// p: point in world (disk in xz plane). k: ray direction (for grazing-angle detail).
+// Outputs: local temp boost, phi basis, orbital speed.
+float diskSample(vec3 p, vec3 k, out float tBoost, out vec3 ePhi, out float vMag) {
   tBoost = 1.0;
   ePhi = vec3(0.0);
   vMag = 0.0;
@@ -168,7 +197,10 @@ float diskSample(vec3 p, out float tBoost, out vec3 ePhi, out float vMag) {
   float rot = omega * uTime * 4.0;
   float ca = cos(ang - rot), sa = sin(ang - rot);
   vec2 rp = vec2(ca * p.x - sa * p.z, sa * p.x + ca * p.z);
-  float n = fbm(rp * 1.4 + fbm(rp * 2.6 - uTime * 0.06) * 1.2);
+  // grazing-angle low-pass: when the ray crosses the disk plane edge-on the fine
+  // angular octaves alias into radial spikes (starburst) — blend to the coarse octave.
+  float detail = smoothstep(0.02, 0.22, abs(k.y));
+  float n = fbm(rp * (0.45 + 0.95 * detail) + fbm(rp * 2.6 - uTime * 0.06) * 1.2 * detail);
   n = clamp(n, 0.0, 1.0);
   float den = radial * prof * (0.62 + uTurb * (n * 1.4 - 0.5));
   // inner puff torus: extra 3D volume hugging the inner edge
@@ -242,7 +274,7 @@ void main() {
     // ---- volumetric disk emission
     if (rDisk > uInnerR - 1.0 && rDisk < uOuterR + 1.0 && abs(p.y) < 2.5 * diskH(rDisk)) {
       float tB; vec3 ePhi; float vM;
-      float den = diskSample(p, tB, ePhi, vM);
+      float den = diskSample(p, k, tB, ePhi, vM);
       if (den > 0.001) {
         float rF = length(p);
         float mu = dot(k, ePhi);
