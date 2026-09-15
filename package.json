@@ -1,0 +1,12 @@
+{
+  "name": "gargantua-schwarzschild-raytracer",
+  "version": "1.0.0",
+  "description": "GARGANTUA — real-time Schwarzschild black hole raytracer (vanilla ESM + local three.js, no build step)",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "serve": "node tools/serve.mjs",
+    "audio": "node tools/gen-audio.mjs",
+    "test": "node test/run-test.mjs view && node test/run-test.mjs shot"
+  }
+}

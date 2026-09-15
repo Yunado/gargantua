@@ -1,0 +1,11 @@
+node_modules/
+*.log
+
+# test artifacts
+test/chrome-prof/
+test/chrome-prof2/
+test/chrome-prof3/
+test/preview-*.png
+test/shot.png
+test/serve-out.txt
+test/clickprobe.html
