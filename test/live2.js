@@ -293,23 +293,21 @@ function updateCamera(dt) {
   if (state.cinematic) {
     controls.target.set(0, 0, 0); // view center locked on the black hole
     if (!userDrag) {
-      // Spherical auto-orbit: keep the user's distance, add the path's azimuth drift,
-      // gently ease elevation toward the cinematic framing, and clamp the polar angle
-      // away from the poles so the motion never dies at top/bottom.
+      // cinematic motion = the path's azimuth drift applied as a rotation around the
+      // black hole (auto-orbit) + a gentle elevation ease, at the user's distance.
       const cp = cinematicPos(state.simTime);
       const cpn = cinematicPos(state.simTime + dt);
       let dA = Math.atan2(cpn.z, cpn.x) - Math.atan2(cp.z, cp.x);
       if (dA > Math.PI) dA -= 2 * Math.PI; else if (dA < -Math.PI) dA += 2 * Math.PI;
+      const ca = Math.cos(dA), sa = Math.sin(dA);
       const r = camera.position.length();
-      const theta = Math.atan2(camera.position.z, camera.position.x) + dA;
-      let phi = Math.acos(THREE.MathUtils.clamp(camera.position.y / r, -1, 1));
-      phi = THREE.MathUtils.lerp(phi, Math.acos(THREE.MathUtils.clamp(cpn.y / cpn.length(), -1, 1)), 0.04);
-      phi = THREE.MathUtils.clamp(phi, 0.06, Math.PI - 0.06);
       _tgt.set(
-        r * Math.sin(phi) * Math.sin(theta),
-        r * Math.cos(phi),
-        r * Math.sin(phi) * Math.cos(theta)
+        camera.position.x * ca - camera.position.z * sa,
+        camera.position.y,
+        camera.position.x * sa + camera.position.z * ca
       );
+      const R = Math.hypot(cpn.x, cpn.z) || 1;
+      _tgt.y += (cpn.y * (r / R) - camera.position.y) * 0.04;
       camera.position.copy(_tgt);
     }
   }
