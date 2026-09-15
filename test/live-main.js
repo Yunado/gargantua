@@ -38,7 +38,7 @@ function loadState() {
         if (QUALITY[s.quality]) state.quality = s.quality;
         if (typeof s.view === 'number') state.view = s.view;
         if (typeof s.debug === 'number' && s.debug >= 0 && s.debug <= 9) state.debug = s.debug;
-        // cinematic is NOT persisted: every load starts in the cinematic loop (grab / C is per-session)
+        if (typeof s.cinematic === 'boolean') state.cinematic = s.cinematic;
         if (typeof s.music === 'boolean') state.music = s.music;
       }
     } catch { /* ignore */ }
@@ -66,7 +66,7 @@ function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
-      const o = { params: state.params, quality: state.quality, view: state.view, debug: state.debug, music: state.music };
+      const o = { params: state.params, quality: state.quality, view: state.view, debug: state.debug, cinematic: state.cinematic, music: state.music };
       localStorage.setItem(STORE, JSON.stringify(o));
     } catch { /* ignore */ }
   }, 300);
@@ -256,10 +256,11 @@ function setView(i, instant) {
     return;
   }
   viewAnim = { t: 0, dur: 1.4, from, to };
-  // presets do NOT turn cinematic off — only C / the Cinematic button do
+  state.cinematic = false;
+  hud.cinematicButton && hud.cinematicButton.classList.remove('on');
 }
 function animateView(dt) {
-  if (!viewAnim) return false;
+  if (!viewAnim) return;
   viewAnim.t += dt;
   const x = Math.min(viewAnim.t / viewAnim.dur, 1);
   const e = x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
@@ -269,31 +270,27 @@ function animateView(dt) {
   const r = THREE.MathUtils.lerp(viewAnim.from.length(), viewAnim.to.length(), e);
   camera.position.copy(d.multiplyScalar(r));
   if (x >= 1) viewAnim = null;
-  return true;
 }
-
 // cinematic camera path
+let cineBlend = 0;
 function cinematicPos(t) {
   const th = t * 0.09 + 0.8 * Math.sin(t * 0.017);
   const R = 24 + 13 * Math.sin(t * 0.031);
   const y = 3.2 * Math.sin(t * 0.043) + 1.4;
   return new THREE.Vector3(R * Math.cos(th), y, R * Math.sin(th));
 }
-// user drag state: while the pointer is down the user owns the camera; on release
-// the cinematic path (if on) smoothly glides the camera back. Only C / button toggles cinematic.
-let userDrag = false;
-const _zero = new THREE.Vector3();
 function updateCamera(dt) {
-  if (animateView(dt)) {
-    controls.update(); // preset flight owns the camera; cinematic (if on) glides back after it finishes
-    return;
+  if (state.cinematic) {
+    cineBlend = Math.min(cineBlend + dt / 1.2, 1);
+    const cp = cinematicPos(state.simTime);
+    if (cineBlend >= 1) camera.position.copy(cp);
+    else camera.position.lerp(cp, 1 - Math.pow(1 - cineBlend, 3) * 0.92);
+    camera.lookAt(0, 0, 0);
+  } else {
+    cineBlend = Math.max(cineBlend - dt / 0.8, 0);
+    animateView(dt);
+    controls.update();
   }
-  if (state.cinematic && !userDrag) {
-    const k = 1 - Math.exp(-2.5 * dt);
-    camera.position.lerp(cinematicPos(state.simTime), k);
-    controls.target.lerp(_zero, k);
-  }
-  controls.update();
 }
 
 // ----------------------------------------------------------------------------- HUD
@@ -312,6 +309,7 @@ const hud = createHUD(document.getElementById('hud'), {
       case 'view': setView(arg); break;
       case 'quality': state.quality = arg; applyQuality(); hud.setQuality(); saveState(); break;
       case 'debug': state.debug = arg; hud.updateDebug(); saveState(); break;
+      case 'cinematic': state.cinematic = !state.cinematic; viewAnim = null; controls.enabled = !state.cinematic; hud.setCinematic(); saveState(); break;
       case 'music': toggleMusic(); saveState(); break;
       case 'hud': state.hudVisible = !state.hudVisible; hud.setHud(); saveState(); break;
       case 'panel': hud.togglePanel(); break;
@@ -381,6 +379,7 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type === 'range') e.target.blur();
   switch (e.code) {
     case 'Space': e.preventDefault(); togglePause(); break;
+    case 'KeyC': hud.onAction('cinematic'); break;
     case 'KeyH': hud.onAction('hud'); break;
     case 'KeyB': hud.onAction('panel'); break;
     case 'KeyM': hud.onAction('music'); break;
@@ -408,10 +407,17 @@ addEventListener('keydown', (e) => {
     case 'Digit9': if (debugMode) setDebug(9); break;
   }
 });
-controls.enabled = true; // orbit works in all modes; cinematic only turns off via C / button
-canvas.addEventListener('pointerdown', () => { userDrag = true; }, { passive: true });
-addEventListener('pointerup', () => { userDrag = false; }, { passive: true });
-addEventListener('pointercancel', () => { userDrag = false; }, { passive: true });
+controls.enabled = !state.cinematic;
+// free-drag grab: pressing the canvas hands the camera to the user even mid-loop
+canvas.addEventListener('pointerdown', () => {
+  if (state.cinematic) {
+    state.cinematic = false;
+    viewAnim = null;
+    controls.enabled = true;
+    hud.setCinematic();
+    saveState();
+  }
+}, { passive: true });
 
 // ----------------------------------------------------------------------------- screenshot
 function doScreenshot() {
@@ -572,7 +578,6 @@ window.GARGANTUA = {
 applyQuality();
 setView(state.view, true);
 hud.setQuality();
-hud.setCinematic();
 hud.updateDebug();
 overlay.classList.add('hidden');
 console.info(`[GARGANTUA] boot: quality=${state.quality} webgl2=${renderer.capabilities.isWebGL2} dpr=${renderer.getPixelRatio()} halfFloat=${halfFloat === THREE.HalfFloatType}`);

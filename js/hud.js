@@ -100,7 +100,6 @@ export function createHUD(root, { state, onParam, onAction }) {
 
   sec('ACTIONS');
   const actItems = [
-    { label: 'Cinematic (C)', fn: () => onAction('cinematic'), ref: 'cinematicButton' },
     { label: 'Music (M)', fn: () => onAction('music'), ref: 'musicButton' },
     { label: 'HUD (H)', fn: () => onAction('hud'), ref: 'hudButton' },
     { label: 'Pause (Space)', fn: () => onAction('pause'), ref: 'pauseButton' },
@@ -110,7 +109,7 @@ export function createHUD(root, { state, onParam, onAction }) {
   ];
   buttonRow(panel, actItems, 'act');
   for (const it of actItems) api[it.ref] = it.el;
-  api.setCinematic = () => { api.cinematicButton.classList.toggle('on', state.cinematic); refreshMeta(); };
+  api.setCinematic = () => { if (api.cinematicButton) api.cinematicButton.classList.toggle('on', state.cinematic); refreshMeta(); };
   api.setMusic = () => { api.musicButton.classList.toggle('on', state.music); };
   api.setHud = () => { root.classList.toggle('no-hud', !state.hudVisible); api.hudButton.classList.toggle('on', state.hudVisible); };
   api.setPaused = () => { api.pauseButton.classList.toggle('on', state.paused); refreshMeta(); };
@@ -148,7 +147,7 @@ export function createHUD(root, { state, onParam, onAction }) {
   // ------------------------------------------------------------- hint bar
   const hint = document.createElement('div');
   hint.className = 'hint';
-  hint.textContent = 'drag orbit · wheel zoom · 1-4 views · Tab→0-9 debug · C cinematic · Q quality · H hud · M music · Space pause · S shot';
+  hint.textContent = 'drag view · wheel zoom · 1-4 views · Tab→0-9 debug · Q quality · H hud · M music · Space pause · S shot';
 
   const panelToggle = document.createElement('button');
   panelToggle.className = 'panel-toggle';
