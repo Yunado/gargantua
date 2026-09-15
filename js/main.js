@@ -99,7 +99,7 @@ function showOverlay(msg, retry) {
 
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
 } catch (e) {
   showOverlay('WebGL unavailable: ' + e.message, true);
   throw e;
@@ -250,7 +250,7 @@ let viewAnim = null;
 function setView(i, instant) {
   state.view = i;
   hud.setView && hud.setView();
-  const to = new THREE.Vector3(...VIEWS[i].pos);
+  const to = new THREE.Vector3(...VIEWS[i].pos).multiplyScalar(1.35); // same pullback as boot (views were reading zoomed-in)
   const from = camera.position.clone();
   if (instant || state.cinematic === false && from.lengthSq() === 0) {
     camera.position.copy(to);
@@ -589,8 +589,7 @@ window.GARGANTUA = {
 
 // ----------------------------------------------------------------------------- boot
 applyQuality();
-setView(state.view, true);
-camera.position.multiplyScalar(1.35); // start a bit farther out: the scene reads smaller on screen
+setView(state.view, true); // includes the ×1.35 pullback (scene reads smaller on screen)
 controls.update();
 hud.setQuality();
 hud.setCinematic();
