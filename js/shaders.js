@@ -142,14 +142,14 @@ vec3 galaxyBand(vec3 d) {
   // Ring-shaped band (like the real galactic plane seen from outside): dim at the
   // pole (a=0), peak at a~0.5, fading outward. The old exp(-a^2) profile peaked at
   // the pole and rendered as one huge diffuse bright blob in bottom-of-sphere views.
-  float band = exp(-pow((a - 0.5) * 3.5, 2.0));
+  float band = exp(-pow((a - 0.5) * 2.6, 2.0)); // wider band (was 3.5)
   // seam-free 3D domain: circumferential features on the sphere plus the band-radial
   // offset along the band normal — no atan, no wrap seam. When the band is viewed
   // edge-on (d ~ perpendicular to gN) its circumferential structure aliases into
   // horizontal stripes — low-pass (lower frequency) in that case; face-on views
   // keep the full detail.
   float faceon = abs(dot(d, gN));
-  float freq = 0.6 + 1.6 * smoothstep(0.0, 0.5, faceon); // 0.6 edge-on .. 2.2 face-on
+  float freq = 0.35 + 0.9 * smoothstep(0.0, 0.5, faceon); // big grand clouds (was 0.6..2.2 — read as small patch hugging the hole)
   vec3 q = d * freq + gN * ((a - 0.52) * 5.5);
   float neb = fbm3(q + 4.7) * 0.75 + fbm3(q * 1.5 - 2.2) * 0.35;
   neb = pow(clamp(neb, 0.0, 1.25), 2.3); // sparse, star-like clumps (was 1.7 — too banded)
@@ -165,7 +165,14 @@ vec3 galaxyBand(vec3 d) {
   return col * band * uGalaxy;
 }
 vec3 background(vec3 d) {
-  return starfield(d) + galaxyBand(d) + vec3(0.004, 0.005, 0.008);
+  // Milky Way look: the real galaxy is a great BAND OF DENSE STARS (a wall of
+  // starlight), with only faint nebulosity on top. Boost star density inside the
+  // band so it reads as a wide galactic band across the sky, not a small patch
+  // hugging the black hole.
+  vec3 gN = normalize(vec3(0.42, 1.0, -0.28));
+  float a = acos(clamp(dot(d, gN), -1.0, 1.0));
+  float bandMask = exp(-pow((a - 0.5) * 2.6, 2.0));
+  return starfield(d) * (1.0 + 2.2 * bandMask) + galaxyBand(d) + vec3(0.004, 0.005, 0.008);
 }
 
 // ---------------------------------------------------------------- blackbody (Tanner Helland incandescence approx)
