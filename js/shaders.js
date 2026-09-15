@@ -36,6 +36,7 @@ uniform float uFlare;
 uniform float uTurb;
 uniform float uMass;
 uniform float uStarDensity;
+uniform float uMilkyStars;
 uniform float uGalaxy;
 uniform float uExposure;
 uniform float uTimeScale;
@@ -137,12 +138,17 @@ vec3 starfield(vec3 d) {
 
 // ---------------------------------------------------------------- milky way band
 vec3 galaxyBand(vec3 d) {
-  vec3 gN = normalize(vec3(0.72, 0.62, -0.35)); // tilted band: reads as a slanted background plane
+  // gN chosen so the band ring (a~0.5 around gN) passes through the interstellar
+  // view direction (0,-0.1,-1): the Milky Way then sweeps across the frame like the
+  // reference photo, not out of frame.
+  vec3 gN = normalize(vec3(0.0, 0.39, -0.927));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
   // Ring-shaped band (like the real galactic plane seen from outside): dim at the
   // pole (a=0), peak at a~0.5, fading outward. The old exp(-a^2) profile peaked at
   // the pole and rendered as one huge diffuse bright blob in bottom-of-sphere views.
-  float band = exp(-pow((a - 0.5) * 2.6, 2.0)); // wider band (was 3.5)
+  // Bright narrow core band + a wider fainter halo band = a richer, fuller band.
+  float band = exp(-pow((a - 0.5) * 2.6, 2.0))
+             + 0.45 * exp(-pow((a - 0.5) * 1.25, 2.0));
   // seam-free 3D domain: circumferential features on the sphere plus the band-radial
   // offset along the band normal — no atan, no wrap seam. When the band is viewed
   // edge-on (d ~ perpendicular to gN) its circumferential structure aliases into
@@ -159,9 +165,9 @@ vec3 galaxyBand(vec3 d) {
   // starlight across the band, bright star clumps, strong winding dust lanes, and a
   // bright warm galactic core. The caustic cap in main() keeps the lensed version
   // from swelling into a blob near the horizon.
-  vec3 col = vec3(1.0, 0.96, 0.88) * (0.45 + 0.55 * fbm3(q * 0.5 + 5.1)) * 0.15; // smooth warm base
-  col += vec3(0.95, 0.93, 1.0) * neb * 0.18;
-  col += vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.34;
+  vec3 col = vec3(1.0, 0.96, 0.88) * (0.45 + 0.55 * fbm3(q * 0.5 + 5.1)) * 0.12; // bright enough for dust lanes to carve contrast
+  col += vec3(0.95, 0.93, 1.0) * neb * 0.10;
+  col += vec3(1.0, 0.70, 0.45) * pow(neb, 3.0) * 0.25;
   col *= 1.0 - smoothstep(0.40, 0.58, dust) * 0.90 * smoothstep(0.0, 0.5, a); // strong winding dust lanes
   // galactic center: one large-scale warm lobe ON the ring (low-freq 3D field keeps
   // it seam-free; no pole-centered blob).
@@ -175,25 +181,30 @@ vec3 galaxyBand(vec3 d) {
 // wall of starlight, not a faint glow.
 vec3 denseStars(vec3 d, float bandMask) {
   vec3 col = vec3(0.0);
-  float cell = 90.0;
+  // clumping: low-frequency field splits the band into dense bright clusters and
+  // sparse/dark gaps (the real Milky Way is not uniform) — this also stops the
+  // uniform star field from smearing into a flat glow under bloom.
+  float clump = fbm3(d * 5.0 + 23.7) * 0.65 + fbm3(d * 11.0 + 71.1) * 0.35;
+  float clumpMask = smoothstep(0.34, 0.66, clump);
+  float cell = 150.0; // dense: ~4px star spacing at 1080p
   for (int i = 0; i < 2; i++) {
     vec3 q = d * cell;
     vec3 id = floor(q);
     vec3 f = fract(q) - 0.5;
-    for (int j = 0; j < 3; j++) {
+    for (int j = 0; j < 4; j++) {
       vec3 h = hash33(id * 1.7 + float(i) * 31.7 + float(j) * 7.3);
-      vec3 sp = (h - 0.5) * 0.8;
+      vec3 sp = (h - 0.5) * 0.85;
       vec3 df = f - sp;
       float dist2 = dot(df, df);
-      float star = exp(-dist2 * 900.0); // small sharp points
-      star = pow(star, 1.5 + 2.0 * h.z);
+      float star = exp(-dist2 * 60.0); // ~1px points: large enough to resolve (900 was sub-pixel -> smeared to fog)
+      star = pow(star, 1.2 + 1.0 * h.z);
       float bright = hash11(h.x * 57.13 + h.y * 13.7);
-      float on = step(0.30, h.y); // high occupancy
+      float on = step(0.12, h.y); // high occupancy
       vec3 tint = mix(vec3(0.65, 0.78, 1.0), vec3(1.0, 0.92, 0.72), h.x);
-      col += star * on * (0.05 + 0.5 * bright) * tint;
+      col += star * on * (0.30 + 2.2 * bright) * tint * (0.30 + 0.70 * clumpMask);
     }
   }
-  return col * bandMask;
+  return col * bandMask * uMilkyStars;
 }
 // distant colored nebulae: large-scale, low-frequency, faint — background color
 // variety beyond the Milky Way (emission pink, reflection blue, teal).
@@ -209,7 +220,7 @@ vec3 background(vec3 d) {
   // starlight), with only faint nebulosity on top. Boost star density inside the
   // band so it reads as a wide galactic band across the sky, not a small patch
   // hugging the black hole.
-  vec3 gN = normalize(vec3(0.72, 0.62, -0.35));
+  vec3 gN = normalize(vec3(0.0, 0.39, -0.927));
   float a = acos(clamp(dot(d, gN), -1.0, 1.0));
   float bandMask = exp(-pow((a - 0.5) * 2.6, 2.0));
   return starfield(d) * (1.0 + 5.5 * bandMask) + denseStars(d, bandMask)

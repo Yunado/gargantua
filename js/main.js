@@ -159,6 +159,7 @@ const sceneMat = makeMat(SCENE_FRAG, {
   uTurb: { value: 1 },
   uMass: { value: 1 },
   uStarDensity: { value: 1 },
+  uMilkyStars: { value: 1 },
   uGalaxy: { value: 1 },
   uExposure: { value: 1 },
   uTimeScale: { value: 1 },
@@ -475,6 +476,7 @@ function syncUniforms() {
   u.uTurb.value = p.turbulence;
   u.uMass.value = p.mass;
   u.uStarDensity.value = p.stars;
+  u.uMilkyStars.value = p.milkyStars;
   u.uGalaxy.value = p.galaxy;
   u.uExposure.value = p.exposure;
   u.uTimeScale.value = p.timeScale;
