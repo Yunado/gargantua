@@ -284,34 +284,32 @@ function cinematicPos(t) {
 // locks the view direction — the current look direction is preserved (the black
 // hole and background nebula drift through the frame as the path moves).
 let userDrag = false;
-const _tgt = new THREE.Vector3();
+const _zero = new THREE.Vector3();
+const _cam = new THREE.Vector3();
+// 镜头死角 threshold (bigger = more parallax flow, which looks better). A smooth
+// gaussian lift (not a hard clamp) keeps the 360° path out of the edge-on band
+// without pinning the camera on a flat ring (no collapse). Manual presets may
+// still be edge-on — this only guards the cinematic auto-motion.
+const DEAD_Y = 2.0;  // edge-on band half-height to lift out of
+const DEAD_R = 14;   // min distance from the black hole: never dip inside the disk
+const DEAD_SIGMA = 1.3; // lift width (wide enough to stay monotonic -> no jitter)
 function updateCamera(dt) {
   if (animateView(dt)) {
-    controls.update(); // preset flight owns the camera; cinematic glides back after it finishes
+    controls.update(); // preset flight owns the camera
     return;
   }
-  if (state.cinematic) {
-    controls.target.set(0, 0, 0); // view center locked on the black hole
-    if (!userDrag) {
-      // Spherical auto-orbit: keep the user's distance, add the path's azimuth drift,
-      // gently ease elevation toward the cinematic framing, and clamp the polar angle
-      // away from the poles so the motion never dies at top/bottom.
-      const cp = cinematicPos(state.simTime);
-      const cpn = cinematicPos(state.simTime + dt);
-      let dA = Math.atan2(cpn.z, cpn.x) - Math.atan2(cp.z, cp.x);
-      if (dA > Math.PI) dA -= 2 * Math.PI; else if (dA < -Math.PI) dA += 2 * Math.PI;
-      const r = camera.position.length();
-      const theta = Math.atan2(camera.position.z, camera.position.x) + dA;
-      let phi = Math.acos(THREE.MathUtils.clamp(camera.position.y / r, -1, 1));
-      phi = THREE.MathUtils.lerp(phi, Math.acos(THREE.MathUtils.clamp(cpn.y / cpn.length(), -1, 1)), 0.04);
-      phi = THREE.MathUtils.clamp(phi, 0.06, Math.PI - 0.06);
-      _tgt.set(
-        r * Math.sin(phi) * Math.sin(theta),
-        r * Math.cos(phi),
-        r * Math.sin(phi) * Math.cos(theta)
-      );
-      camera.position.copy(_tgt);
-    }
+  if (state.cinematic && !userDrag) {
+    // The camera rides the drifting path (left-right lateral drift + radius/height
+    // breathing) and keeps looking at the black hole, so the starfield/nebula flows
+    // by with parallax. Drag temporarily takes over; on release it glides back.
+    const k = 1 - Math.exp(-2.5 * dt);
+    _cam.copy(cinematicPos(state.simTime));
+    const ay = Math.abs(_cam.y);
+    const w = Math.exp(-(ay * ay) / (2 * DEAD_SIGMA * DEAD_SIGMA));
+    _cam.y += Math.sign(_cam.y || 1) * DEAD_Y * w; // smooth dead-zone lift (monotonic)
+    if (_cam.length() < DEAD_R) _cam.multiplyScalar(1 + (DEAD_R - _cam.length()) / _cam.length() * 0.5);
+    camera.position.lerp(_cam, k);
+    controls.target.lerp(_zero, k); // black hole stays at the screen center
   }
   controls.update();
 }
