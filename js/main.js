@@ -291,7 +291,6 @@ const _cam = new THREE.Vector3();
 // without pinning the camera on a flat ring (no collapse). Manual presets may
 // still be edge-on — this only guards the cinematic auto-motion.
 const DEAD_Y = 2.0;  // edge-on band half-height to lift out of
-const DEAD_R = 14;   // min distance from the black hole: never dip inside the disk
 const DEAD_SIGMA = 1.3; // lift width (wide enough to stay monotonic -> no jitter)
 function updateCamera(dt) {
   if (animateView(dt)) {
@@ -307,7 +306,7 @@ function updateCamera(dt) {
     const ay = Math.abs(_cam.y);
     const w = Math.exp(-(ay * ay) / (2 * DEAD_SIGMA * DEAD_SIGMA));
     _cam.y += Math.sign(_cam.y || 1) * DEAD_Y * w; // smooth dead-zone lift (monotonic)
-    if (_cam.length() < DEAD_R) _cam.multiplyScalar(1 + (DEAD_R - _cam.length()) / _cam.length() * 0.5);
+    _cam.multiplyScalar(camera.position.length() / _cam.length()); // path = direction only; zoom distance stays the user's
     camera.position.lerp(_cam, k);
     controls.target.lerp(_zero, k); // black hole stays at the screen center
   }
