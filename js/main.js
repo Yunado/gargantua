@@ -347,13 +347,20 @@ function toggleMusic() {
   hud.setMusic();
 }
 if (state.music) {
+  ensureAudio(); // preload in the background — first gesture then starts playback instantly
+  audio.play().catch(() => {}); // works immediately on returning visits (Chrome autoplay allowance); rejected otherwise — gesture kick below covers first visits
+  let done = false;
   const kick = () => {
-    if (!state.music) return;
+    if (!state.music || done) return;
     ensureAudio();
-    audio.play().catch(() => {});
+    audio.play().then(() => {
+      done = true;
+      removeEventListener('pointerdown', kick, true);
+      removeEventListener('keydown', kick, true);
+    }).catch(() => {}); // rejected (no gesture yet / autoplay policy) — keep retrying on next gesture
   };
-  addEventListener('pointerdown', kick, { once: true, passive: true });
-  addEventListener('keydown', kick, { once: true });
+  addEventListener('pointerdown', kick, { capture: true, passive: true });
+  addEventListener('keydown', kick, { capture: true });
 }
 hud.setMusic();
 
