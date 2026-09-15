@@ -35,7 +35,7 @@ export const VIEWS = [
   { name: 'Interstellar', pos: [0, 3.2, 27] },
   { name: 'Grazing dive', pos: [16.5, 1.1, 6.5] },
   { name: 'Photon ring', pos: [0, 0.9, 8.2] },
-  { name: 'Overhead', pos: [0, 20, 6.5] }, // slight tilt: straight-down (polar=0) makes the up-vector parallel to the view -> roll ambiguity ("dead zone"); a ~18° tilt reads cleaner
+  { name: 'Overhead', pos: [0, 17, 11] }, // clearly tilted (~33° from vertical) - not straight-down (polar=0 up-vector dead zone)
 ];
 
 export const DEBUG_NAMES = [
